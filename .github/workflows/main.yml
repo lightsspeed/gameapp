@@ -41,7 +41,7 @@ jobs:
 
       - name: Update ECS Task Definition
         run: |
-          aws ecs describe-task-definition --task-definition gameapp-task --region ap-south-1 > task-def.json
+          aws ecs describe-task-definition --task-definition gameapp --region ap-south-1 > task-def.json
           # Extract only the taskDefinition fields that can be re-registered
           jq '.taskDefinition | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' task-def.json > clean-task-def.json
           # Update the image in the container definition
