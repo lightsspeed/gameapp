@@ -41,9 +41,12 @@ jobs:
 
       - name: Update ECS Task Definition
         run: |
-          aws ecs describe-task-definition --task-definition gameapp --region ap-south-1 > task-def.json
-          jq '.taskDefinition | .containerDefinitions[0].image = "${{ steps.login-ecr.outputs.registry }}/gameapp:run-${{ github.run_number }}"' task-def.json > updated-task-def.json
-          aws ecs register-task-definition --cli-input-json file://updated-task-def.json --region us-east-1
+          aws ecs describe-task-definition --task-definition gameapp-task --region ap-south-1 > task-def.json
+          # Extract only the taskDefinition fields that can be re-registered
+          jq '.taskDefinition | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' task-def.json > clean-task-def.json
+          # Update the image in the container definition
+          jq '.containerDefinitions[0].image = "${{ steps.login-ecr.outputs.registry }}/gameapp:run-${{ github.run_number }}"' clean-task-def.json > updated-task-def.json
+          aws ecs register-task-definition --cli-input-json file://updated-task-def.json --region ap-south-1
 
       - name: Deploy to ECS
         run: |
