@@ -1,0 +1,50 @@
+name: Build, Push to ECR & Deploy to ECS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1  # Adjust to your region
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Debug ECR Registry
+        run: echo "ECR Registry:${{ steps.login-ecr.outputs.registry }}"
+
+      - name: Build Docker Image
+        run: docker build -t gameapp .
+
+      - name: Tag Docker Image
+        run: |
+          docker tag gameapp ${{ steps.login-ecr.outputs.registry }}/gameapp:run-${{ github.run_number }}
+
+      - name: Push Docker Image to ECR
+        run: |
+          docker push ${{ steps.login-ecr.outputs.registry }}/gameapp:run-${{ github.run_number }}
+
+      - name: Update ECS Task Definition
+        run: |
+          aws ecs describe-task-definition --task-definition gameapp --region ap-south-1 > task-def.json
+          jq '.taskDefinition | .containerDefinitions[0].image = "${{ steps.login-ecr.outputs.registry }}/gameapp:run-${{ github.run_number }}"' task-def.json > updated-task-def.json
+          aws ecs register-task-definition --cli-input-json file://updated-task-def.json --region us-east-1
+
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service --cluster Gameapp --service gameapp-service-c0kuia98 --task-definition gameapp --force-new-deployment --region ap-south-1
